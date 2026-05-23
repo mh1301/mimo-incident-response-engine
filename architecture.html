@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MiMo Incident Response Engine — Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#020617;color:#e2e8f0;font-family:'JetBrains Mono',monospace;min-height:100vh;padding:40px 20px}
+.container{max-width:1200px;margin:0 auto}
+.header{text-align:center;margin-bottom:40px}
+.header h1{font-size:24px;font-weight:700;background:linear-gradient(135deg,#818cf8,#c084fc,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px}
+.header p{color:#94a3b8;font-size:12px}
+.dot-indicator{display:inline-block;width:8px;height:8px;border-radius:50%;background:#22d3ee;margin-right:8px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.diagram-card{background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:24px;margin-bottom:24px;overflow-x:auto}
+.cards-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
+@media(max-width:900px){.cards-grid{grid-template-columns:1fr}}
+.card{background:#0f172a;border:1px solid #1e293b;border-radius:12px;padding:20px}
+.card-header{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.card-dot{width:6px;height:6px;border-radius:50%}
+.card-dot.cyan{background:#22d3ee}
+.card-dot.emerald{background:#34d399}
+.card-dot.violet{background:#a78bfa}
+.card-dot.rose{background:#fb7185}
+.card-dot.amber{background:#fbbf24}
+.card h3{font-size:13px;font-weight:600;color:#e2e8f0}
+.card ul{list-style:none;font-size:11px;color:#94a3b8;line-height:1.8}
+.footer{text-align:center;color:#475569;font-size:10px;margin-top:32px}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+    <h1><span class="dot-indicator"></span>MiMo Incident Response Engine</h1>
+    <p>7-Agent Architecture — Automated Security Incident Detection, Triage, Forensics, Containment & Reporting</p>
+</div>
+
+<div class="diagram-card">
+<svg viewBox="0 0 1100 780" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">
+<defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#6366f1"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#34d399"/>
+    </marker>
+    <marker id="arrow-rose" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#fb7185"/>
+    </marker>
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#fbbf24"/>
+    </marker>
+</defs>
+
+<!-- Background -->
+<rect width="1100" height="780" fill="#020617"/>
+<rect width="1100" height="780" fill="url(#grid)"/>
+
+<!-- ═══ TITLE ═══ -->
+<text x="550" y="30" text-anchor="middle" fill="#818cf8" font-size="14" font-weight="700">AGENT KERNEL — LIFECYCLE MANAGEMENT</text>
+
+<!-- ═══ LOG SOURCES ═══ -->
+<rect x="20" y="55" width="160" height="50" rx="6" fill="#0f172a" stroke="#94a3b8" stroke-width="1.5"/>
+<rect x="20" y="55" width="160" height="50" rx="6" fill="rgba(30,41,59,0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="100" y="76" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="600">Syslog</text>
+<text x="100" y="92" text-anchor="middle" fill="#64748b" font-size="8">UDP 514</text>
+
+<rect x="20" y="115" width="160" height="50" rx="6" fill="#0f172a" stroke="#94a3b8" stroke-width="1.5"/>
+<rect x="20" y="115" width="160" height="50" rx="6" fill="rgba(30,41,59,0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="100" y="136" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="600">Firewall Logs</text>
+<text x="100" y="152" text-anchor="middle" fill="#64748b" font-size="8">iptables / pfSense</text>
+
+<rect x="20" y="175" width="160" height="50" rx="6" fill="#0f172a" stroke="#94a3b8" stroke-width="1.5"/>
+<rect x="20" y="175" width="160" height="50" rx="6" fill="rgba(30,41,59,0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="100" y="196" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="600">Endpoint Logs</text>
+<text x="100" y="212" text-anchor="middle" fill="#64748b" font-size="8">EDR / Sysmon</text>
+
+<rect x="20" y="235" width="160" height="50" rx="6" fill="#0f172a" stroke="#94a3b8" stroke-width="1.5"/>
+<rect x="20" y="235" width="160" height="50" rx="6" fill="rgba(30,41,59,0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="100" y="256" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="600">Cloud Logs</text>
+<text x="100" y="272" text-anchor="middle" fill="#64748b" font-size="8">AWS CloudTrail / GCP</text>
+
+<rect x="20" y="295" width="160" height="50" rx="6" fill="#0f172a" stroke="#94a3b8" stroke-width="1.5"/>
+<rect x="20" y="295" width="160" height="50" rx="6" fill="rgba(30,41,59,0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="100" y="316" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="600">Attack Simulator</text>
+<text x="100" y="332" text-anchor="middle" fill="#64748b" font-size="8">5 scenarios (demo)</text>
+
+<!-- Arrows: Log Sources → TelemetryAgent -->
+<line x1="180" y1="80" x2="230" y2="110" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="180" y1="140" x2="230" y2="125" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="180" y1="200" x2="230" y2="140" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="180" y1="260" x2="230" y2="150" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="180" y1="320" x2="230" y2="160" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<!-- ═══ AGENT PIPELINE ═══ -->
+
+<!-- TelemetryAgent -->
+<rect x="230" y="80" width="140" height="110" rx="6" fill="#0f172a" stroke="#22d3ee" stroke-width="1.5"/>
+<rect x="230" y="80" width="140" height="110" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+<text x="300" y="104" text-anchor="middle" fill="#22d3ee" font-size="11" font-weight="700">TelemetryAgent</text>
+<text x="300" y="120" text-anchor="middle" fill="#94a3b8" font-size="8">Interval: 10s</text>
+<text x="300" y="140" text-anchor="middle" fill="#64748b" font-size="8">• Collect events</text>
+<text x="300" y="152" text-anchor="middle" fill="#64748b" font-size="8">• Normalize logs</text>
+<text x="300" y="164" text-anchor="middle" fill="#64748b" font-size="8">• Store to SQLite</text>
+<text x="300" y="180" text-anchor="middle" fill="#22d3ee" font-size="7">OUTPUT: Normalized Events</text>
+
+<!-- Arrow: Telemetry → Correlation -->
+<line x1="370" y1="135" x2="410" y2="135" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<!-- CorrelationAgent -->
+<rect x="410" y="80" width="140" height="110" rx="6" fill="#0f172a" stroke="#34d399" stroke-width="1.5"/>
+<rect x="410" y="80" width="140" height="110" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="480" y="104" text-anchor="middle" fill="#34d399" font-size="11" font-weight="700">CorrelationAgent</text>
+<text x="480" y="120" text-anchor="middle" fill="#94a3b8" font-size="8">Interval: 5s</text>
+<text x="480" y="140" text-anchor="middle" fill="#64748b" font-size="8">• Sigma rules engine</text>
+<text x="480" y="152" text-anchor="middle" fill="#64748b" font-size="8">• Pattern matching</text>
+<text x="480" y="164" text-anchor="middle" fill="#64748b" font-size="8">• MiMo reasoning</text>
+<text x="480" y="180" text-anchor="middle" fill="#34d399" font-size="7">OUTPUT: Correlated Incidents</text>
+
+<!-- Arrow: Correlation → Triage -->
+<line x1="550" y1="135" x2="590" y2="135" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<!-- TriageAgent -->
+<rect x="590" y="80" width="140" height="110" rx="6" fill="#0f172a" stroke="#fbbf24" stroke-width="1.5"/>
+<rect x="590" y="80" width="140" height="110" rx="6" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+<text x="660" y="104" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="700">TriageAgent</text>
+<text x="660" y="120" text-anchor="middle" fill="#94a3b8" font-size="8">Interval: 15s</text>
+<text x="660" y="140" text-anchor="middle" fill="#64748b" font-size="8">• Filter false positives</text>
+<text x="660" y="152" text-anchor="middle" fill="#64748b" font-size="8">• Assign severity</text>
+<text x="660" y="164" text-anchor="middle" fill="#64748b" font-size="8">• Priority scoring</text>
+<text x="660" y="180" text-anchor="middle" fill="#fbbf24" font-size="7">OUTPUT: Confirmed Incidents</text>
+
+<!-- Arrow: Triage → Forensic -->
+<line x1="660" y1="190" x2="660" y2="240" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<!-- ForensicAgent -->
+<rect x="590" y="240" width="140" height="110" rx="6" fill="#0f172a" stroke="#a78bfa" stroke-width="1.5"/>
+<rect x="590" y="240" width="140" height="110" rx="6" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="660" y="264" text-anchor="middle" fill="#a78bfa" font-size="11" font-weight="700">ForensicAgent</text>
+<text x="660" y="280" text-anchor="middle" fill="#94a3b8" font-size="8">Interval: 30s</text>
+<text x="660" y="300" text-anchor="middle" fill="#64748b" font-size="8">• Timeline reconstruction</text>
+<text x="660" y="312" text-anchor="middle" fill="#64748b" font-size="8">• IOC extraction</text>
+<text x="660" y="324" text-anchor="middle" fill="#64748b" font-size="8">• MiMo deep analysis</text>
+<text x="660" y="340" text-anchor="middle" fill="#a78bfa" font-size="7">OUTPUT: Forensic Report</text>
+
+<!-- Arrow: Forensic → Containment -->
+<line x1="660" y1="350" x2="660" y2="400" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrow-rose)"/>
+
+<!-- ContainmentAgent -->
+<rect x="590" y="400" width="140" height="110" rx="6" fill="#0f172a" stroke="#fb7185" stroke-width="1.5"/>
+<rect x="590" y="400" width="140" height="110" rx="6" fill="rgba(136,19,55,0.4)" stroke="#fb7185" stroke-width="1.5"/>
+<text x="660" y="424" text-anchor="middle" fill="#fb7185" font-size="11" font-weight="700">ContainmentAgent</text>
+<text x="660" y="440" text-anchor="middle" fill="#94a3b8" font-size="8">Interval: 20s</text>
+<text x="660" y="460" text-anchor="middle" fill="#64748b" font-size="8">• Block IPs</text>
+<text x="660" y="472" text-anchor="middle" fill="#64748b" font-size="8">• Isolate hosts</text>
+<text x="660" y="484" text-anchor="middle" fill="#64748b" font-size="8">• Kill processes</text>
+<text x="660" y="500" text-anchor="middle" fill="#fb7185" font-size="7">OUTPUT: Containment Actions</text>
+
+<!-- Arrow: Containment → Remediation -->
+<line x1="660" y1="510" x2="660" y2="560" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+
+<!-- RemediationAgent -->
+<rect x="590" y="560" width="140" height="110" rx="6" fill="#0f172a" stroke="#34d399" stroke-width="1.5"/>
+<rect x="590" y="560" width="140" height="110" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="660" y="584" text-anchor="middle" fill="#34d399" font-size="11" font-weight="700">RemediationAgent</text>
+<text x="660" y="600" text-anchor="middle" fill="#94a3b8" font-size="8">Interval: 25s</text>
+<text x="660" y="620" text-anchor="middle" fill="#64748b" font-size="8">• Patch vulnerabilities</text>
+<text x="660" y="632" text-anchor="middle" fill="#64748b" font-size="8">• Remove malware</text>
+<text x="660" y="644" text-anchor="middle" fill="#64748b" font-size="8">• Verify integrity</text>
+<text x="660" y="660" text-anchor="middle" fill="#34d399" font-size="7">OUTPUT: Remediation Status</text>
+
+<!-- Arrow: Remediation → Report -->
+<line x1="590" y1="615" x2="420" y2="615" stroke="#818cf8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<!-- ReportAgent -->
+<rect x="280" y="560" width="140" height="110" rx="6" fill="#0f172a" stroke="#818cf8" stroke-width="1.5"/>
+<rect x="280" y="560" width="140" height="110" rx="6" fill="rgba(99,102,241,0.3)" stroke="#818cf8" stroke-width="1.5"/>
+<text x="350" y="584" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="700">ReportAgent</text>
+<text x="350" y="600" text-anchor="middle" fill="#94a3b8" font-size="8">Interval: 60s</text>
+<text x="350" y="620" text-anchor="middle" fill="#64748b" font-size="8">• NIST SP 800-61 format</text>
+<text x="350" y="632" text-anchor="middle" fill="#64748b" font-size="8">• MiMo report generation</text>
+<text x="350" y="644" text-anchor="middle" fill="#64748b" font-size="8">• PDF export</text>
+<text x="350" y="660" text-anchor="middle" fill="#818cf8" font-size="7">OUTPUT: Incident Report</text>
+
+<!-- ═══ MIMO LLM ═══ -->
+<rect x="830" y="200" width="200" height="180" rx="12" fill="#0f172a" stroke="#c084fc" stroke-width="2" stroke-dasharray="8,4"/>
+<text x="930" y="224" text-anchor="middle" fill="#c084fc" font-size="12" font-weight="700">MiMo LLM</text>
+<text x="930" y="240" text-anchor="middle" fill="#94a3b8" font-size="8">xmtp/mimo-v2.5-pro</text>
+<text x="930" y="264" text-anchor="middle" fill="#64748b" font-size="8">• Attack pattern reasoning</text>
+<text x="930" y="276" text-anchor="middle" fill="#64748b" font-size="8">• False positive detection</text>
+<text x="930" y="288" text-anchor="middle" fill="#64748b" font-size="8">• Timeline correlation</text>
+<text x="930" y="300" text-anchor="middle" fill="#64748b" font-size="8">• IOC analysis</text>
+<text x="930" y="312" text-anchor="middle" fill="#64748b" font-size="8">• Report generation</text>
+<text x="930" y="332" text-anchor="middle" fill="#c084fc" font-size="7">http://43.153.206.68:20128</text>
+<text x="930" y="344" text-anchor="middle" fill="#c084fc" font-size="7">/v1/chat/completions</text>
+<text x="930" y="360" text-anchor="middle" fill="#c084fc" font-size="7">Temperature: 0.3</text>
+
+<!-- Arrows: Agents → MiMo -->
+<line x1="730" y1="135" x2="830" y2="260" stroke="#c084fc" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+<line x1="730" y1="295" x2="830" y2="280" stroke="#c084fc" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+<line x1="730" y1="455" x2="830" y2="300" stroke="#c084fc" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+
+<!-- ═══ DATABASE ═══ -->
+<rect x="830" y="430" width="200" height="100" rx="6" fill="#0f172a" stroke="#a78bfa" stroke-width="1.5"/>
+<rect x="830" y="430" width="200" height="100" rx="6" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="930" y="454" text-anchor="middle" fill="#a78bfa" font-size="12" font-weight="700">SQLite (WAL)</text>
+<text x="930" y="470" text-anchor="middle" fill="#94a3b8" font-size="8">7 Tables</text>
+<text x="930" y="490" text-anchor="middle" fill="#64748b" font-size="8">events • incidents • correlations</text>
+<text x="930" y="502" text-anchor="middle" fill="#64748b" font-size="8">forensics • containments</text>
+<text x="930" y="514" text-anchor="middle" fill="#64748b" font-size="8">remediations • reports</text>
+
+<!-- Arrow: Agents → Database -->
+<line x1="370" y1="160" x2="830" y2="460" stroke="#a78bfa" stroke-width="1" stroke-dasharray="4,3"/>
+<line x1="730" y1="135" x2="830" y2="460" stroke="#a78bfa" stroke-width="1" stroke-dasharray="4,3"/>
+
+<!-- ═══ DASHBOARD ═══ -->
+<rect x="830" y="570" width="200" height="90" rx="6" fill="#0f172a" stroke="#22d3ee" stroke-width="1.5"/>
+<rect x="830" y="570" width="200" height="90" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+<text x="930" y="594" text-anchor="middle" fill="#22d3ee" font-size="12" font-weight="700">Dashboard</text>
+<text x="930" y="610" text-anchor="middle" fill="#94a3b8" font-size="8">FastAPI + WebSocket</text>
+<text x="930" y="630" text-anchor="middle" fill="#64748b" font-size="8">• 8 tabs (real-time)</text>
+<text x="930" y="642" text-anchor="middle" fill="#64748b" font-size="8">• Port 80</text>
+
+<!-- Arrow: Database → Dashboard -->
+<line x1="930" y1="530" x2="930" y2="570" stroke="#22d3ee" stroke-width="1" marker-end="url(#arrow)"/>
+
+<!-- ═══ SIGMA RULES ═══ -->
+<rect x="280" y="240" width="140" height="90" rx="6" fill="#0f172a" stroke="#fb923c" stroke-width="1.5"/>
+<rect x="280" y="240" width="140" height="90" rx="6" fill="rgba(251,146,60,0.2)" stroke="#fb923c" stroke-width="1.5"/>
+<text x="350" y="264" text-anchor="middle" fill="#fb923c" font-size="11" font-weight="700">Sigma Rules</text>
+<text x="350" y="280" text-anchor="middle" fill="#94a3b8" font-size="8">8 Detection Rules</text>
+<text x="350" y="300" text-anchor="middle" fill="#64748b" font-size="8">SSH Brute Force</text>
+<text x="350" y="312" text-anchor="middle" fill="#64748b" font-size="8">Port Scan • Malware • Exfil</text>
+
+<!-- Arrow: Sigma → Correlation -->
+<line x1="420" y1="260" x2="480" y2="190" stroke="#fb923c" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-amber)"/>
+
+<!-- ═══ SHARED MEMORY ═══ -->
+<rect x="280" y="370" width="140" height="70" rx="6" fill="#0f172a" stroke="#6366f1" stroke-width="1.5"/>
+<rect x="280" y="370" width="140" height="70" rx="6" fill="rgba(99,102,241,0.2)" stroke="#6366f1" stroke-width="1.5"/>
+<text x="350" y="394" text-anchor="middle" fill="#6366f1" font-size="11" font-weight="700">Event Bus</text>
+<text x="350" y="410" text-anchor="middle" fill="#94a3b8" font-size="8">In-Process (asyncio)</text>
+<text x="350" y="426" text-anchor="middle" fill="#64748b" font-size="8">Real-time event routing</text>
+
+<!-- ═══ CONTAINMENT ACTIONS ═══ -->
+<rect x="830" y="80" width="200" height="90" rx="6" fill="#0f172a" stroke="#fb7185" stroke-width="1.5"/>
+<rect x="830" y="80" width="200" height="90" rx="6" fill="rgba(136,19,55,0.3)" stroke="#fb7185" stroke-width="1.5"/>
+<text x="930" y="104" text-anchor="middle" fill="#fb7185" font-size="11" font-weight="700">Enforcement</text>
+<text x="930" y="120" text-anchor="middle" fill="#94a3b8" font-size="8">Automated Actions</text>
+<text x="930" y="140" text-anchor="middle" fill="#64748b" font-size="8">Firewall • EDR • Cloud</text>
+<text x="930" y="152" text-anchor="middle" fill="#64748b" font-size="8">Account disable • Network isolate</text>
+
+<!-- Arrow: Containment → Enforcement -->
+<line x1="730" y1="455" x2="830" y2="125" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrow-rose)"/>
+
+<!-- ═══ LEGEND ═══ -->
+<rect x="20" y="690" width="1060" height="70" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+
+<rect x="40" y="710" width="12" height="12" rx="2" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1"/>
+<text x="58" y="720" fill="#22d3ee" font-size="8">Frontend / Telemetry</text>
+
+<rect x="180" y="710" width="12" height="12" rx="2" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1"/>
+<text x="198" y="720" fill="#34d399" font-size="8">Processing / Remediation</text>
+
+<rect x="340" y="710" width="12" height="12" rx="2" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1"/>
+<text x="358" y="720" fill="#a78bfa" font-size="8">Database / Forensics</text>
+
+<rect x="490" y="710" width="12" height="12" rx="2" fill="rgba(136,19,55,0.4)" stroke="#fb7185" stroke-width="1"/>
+<text x="508" y="720" fill="#fb7185" font-size="8">Security / Containment</text>
+
+<rect x="650" y="710" width="12" height="12" rx="2" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1"/>
+<text x="668" y="720" fill="#fbbf24" font-size="8">Triage / Severity</text>
+
+<rect x="790" y="710" width="12" height="12" rx="2" fill="rgba(99,102,241,0.3)" stroke="#818cf8" stroke-width="1"/>
+<text x="808" y="720" fill="#818cf8" font-size="8">Reporting / Bus</text>
+
+<rect x="930" y="710" width="12" height="12" rx="2" fill="rgba(251,146,60,0.2)" stroke="#fb923c" stroke-width="1"/>
+<text x="948" y="720" fill="#fb923c" font-size="8">Rules / Config</text>
+
+<text x="40" y="748" fill="#475569" font-size="7">Dashed = LLM integration / Security enforcement | Solid = Data flow | Arrows = Direction</text>
+
+</svg>
+</div>
+
+<div class="cards-grid">
+    <div class="card">
+        <div class="card-header"><div class="card-dot cyan"></div><h3>7 Agents</h3></div>
+        <ul>
+            <li>• TelemetryAgent (10s) — collect & normalize</li>
+            <li>• CorrelationAgent (5s) — Sigma rules + MiMo</li>
+            <li>• TriageAgent (15s) — filter FP, prioritize</li>
+            <li>• ForensicAgent (30s) — timeline, IOCs</li>
+            <li>• ContainmentAgent (20s) — auto-isolate</li>
+            <li>• RemediationAgent (25s) — patch, clean</li>
+            <li>• ReportAgent (60s) — NIST reports</li>
+        </ul>
+    </div>
+    <div class="card">
+        <div class="card-header"><div class="card-dot emerald"></div><h3>Tech Stack</h3></div>
+        <ul>
+            <li>• FastAPI + WebSocket (real-time)</li>
+            <li>• SQLite WAL mode (7 tables)</li>
+            <li>• MiMo v2.5 Pro (LLM reasoning)</li>
+            <li>• Sigma rules engine (8 patterns)</li>
+            <li>• Dark theme dashboard (8 tabs)</li>
+            <li>• AgentKernel lifecycle management</li>
+            <li>• Python 3.10+ asyncio</li>
+        </ul>
+    </div>
+    <div class="card">
+        <div class="card-header"><div class="card-dot rose"></div><h3>Detection Rules</h3></div>
+        <ul>
+            <li>• SSH Brute Force (credential_access)</li>
+            <li>• Port Scanning (reconnaissance)</li>
+            <li>• Malware + C2 (execution)</li>
+            <li>• Data Exfiltration (exfiltration)</li>
+            <li>• Privilege Escalation (privilege_escalation)</li>
+            <li>• Lateral Movement (lateral_movement)</li>
+            <li>• DNS Tunneling (command_and_control)</li>
+            <li>• Ransomware Activity (impact)</li>
+        </ul>
+    </div>
+</div>
+
+<div class="footer">
+    MiMo Incident Response Engine — mh1301/mimo-incident-response-engine — MIT License
+</div>
+</div>
+</body>
+</html>
