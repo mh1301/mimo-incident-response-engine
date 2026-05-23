@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MiMo Incident Response Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0b0f19;--bg2:#111827;--card:#1a1f2e;--border:#2a3040;--text:#e5e7eb;--muted:#9ca3af;--accent:#6366f1;--green:#22c55e;--red:#ef4444;--yellow:#eab308;--orange:#f97316;--blue:#3b82f6}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;min-height:100vh}
+.header{background:linear-gradient(135deg,#1a1040,#0f172a);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;backdrop-filter:blur(12px)}
+.header h1{font-size:18px;font-weight:600;background:linear-gradient(135deg,#818cf8,#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header-right{display:flex;align-items:center;gap:12px}
+.ws-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+.ws-dot.disconnected{background:var(--red);animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.tabs{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{padding:12px 20px;cursor:pointer;border-bottom:2px solid transparent;color:var(--muted);font-size:13px;font-weight:500;white-space:nowrap;transition:all .2s}
+.tab:hover{color:var(--text);background:rgba(99,102,241,.05)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);background:rgba(99,102,241,.1)}
+.main{padding:20px;max-width:1400px;margin:0 auto}
+.tab-content{display:none}
+.tab-content.active{display:block}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+@media(max-width:1024px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){.stats-grid{grid-template-columns:1fr}}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center}
+.stat-value{font-size:32px;font-weight:700;font-family:'JetBrains Mono',monospace}
+.stat-label{font-size:12px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:.5px}
+.stat-icon{font-size:24px;margin-bottom:8px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px}
+.card-title{font-size:14px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);color:var(--muted);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+td{padding:10px 12px;border-bottom:1px solid rgba(42,48,64,.5)}
+tr:hover td{background:rgba(99,102,241,.03)}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid}
+.badge-critical{color:var(--red);border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.1)}
+.badge-high{color:var(--orange);border-color:rgba(249,115,22,.3);background:rgba(249,115,22,.1)}
+.badge-medium{color:var(--yellow);border-color:rgba(234,179,8,.3);background:rgba(234,179,8,.1)}
+.badge-low{color:var(--green);border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.1)}
+.badge-info{color:var(--blue);border-color:rgba(59,130,246,.3);background:rgba(59,130,246,.1)}
+.badge-open{color:var(--yellow);border-color:rgba(234,179,8,.3);background:rgba(234,179,8,.1)}
+.badge-contained{color:var(--blue);border-color:rgba(59,130,246,.3);background:rgba(59,130,246,.1)}
+.badge-resolved{color:var(--green);border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.1)}
+.badge-dismissed{color:var(--muted);border-color:rgba(156,163,175,.3);background:rgba(156,163,175,.1)}
+.badge-completed{color:var(--green);border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.1)}
+.badge-executing{color:var(--yellow);border-color:rgba(234,179,8,.3);background:rgba(234,179,8,.1)}
+.badge-pending{color:var(--muted);border-color:rgba(156,163,175,.3);background:rgba(156,163,175,.1)}
+.health-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media(max-width:1024px){.health-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){.health-grid{grid-template-columns:1fr}}
+.health-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px}
+.health-name{font-size:12px;font-weight:600;color:var(--accent);margin-bottom:6px}
+.health-status{display:flex;align-items:center;gap:6px;font-size:11px}
+.health-dot{width:6px;height:6px;border-radius:50%}
+.health-dot.running{background:var(--green)}
+.health-dot.error{background:var(--red)}
+.health-dot.registered{background:var(--yellow)}
+.health-dot.stopped{background:var(--muted)}
+.health-detail{font-size:10px;color:var(--muted);margin-top:4px;font-family:'JetBrains Mono',monospace}
+.event-log{max-height:400px;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:12px}
+.event-row{padding:6px 10px;border-bottom:1px solid rgba(42,48,64,.3);display:flex;gap:12px}
+.event-time{color:var(--muted);min-width:80px}
+.event-type{min-width:120px;font-weight:500}
+.event-src{color:var(--blue);min-width:100px}
+.event-detail{color:var(--text)}
+.chart-bar{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.chart-bar-label{min-width:80px;font-size:11px;text-align:right;color:var(--muted)}
+.chart-bar-track{flex:1;height:20px;background:var(--bg);border-radius:4px;overflow:hidden}
+.chart-bar-fill{height:100%;border-radius:4px;transition:width .5s;display:flex;align-items:center;padding-left:8px;font-size:10px;font-weight:600}
+.report-content{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:20px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.6;max-height:600px;overflow-y:auto;white-space:pre-wrap}
+.empty{text-align:center;padding:40px;color:var(--muted)}
+.btn{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer;font-size:12px;font-weight:500;transition:all .2s}
+.btn:hover{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-accent{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn-accent:hover{background:#4f46e5}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:768px){.grid-2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="header">
+    <h1>MiMo Incident Response Engine</h1>
+    <div class="header-right">
+        <span style="font-size:11px;color:var(--muted)" id="eventCount">0 events</span>
+        <div class="ws-dot disconnected" id="wsDot" title="WebSocket"></div>
+    </div>
+</div>
+
+<div class="tabs" id="tabs">
+    <div class="tab active" data-tab="overview">Overview</div>
+    <div class="tab" data-tab="telemetry">Telemetry</div>
+    <div class="tab" data-tab="correlations">Correlations</div>
+    <div class="tab" data-tab="triage">Triage</div>
+    <div class="tab" data-tab="forensics">Forensics</div>
+    <div class="tab" data-tab="containment">Containment</div>
+    <div class="tab" data-tab="remediation">Remediation</div>
+    <div class="tab" data-tab="reports">Reports</div>
+</div>
+
+<div class="main">
+    <!-- OVERVIEW TAB -->
+    <div class="tab-content active" id="tab-overview">
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-value" id="s-total-events">0</div><div class="stat-label">Total Events</div></div>
+            <div class="stat-card"><div class="stat-icon">🚨</div><div class="stat-value" id="s-open-incidents">0</div><div class="stat-label">Open Incidents</div></div>
+            <div class="stat-card"><div class="stat-icon">🛡️</div><div class="stat-value" id="s-contained">0</div><div class="stat-label">Contained</div></div>
+            <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-value" id="s-resolved">0</div><div class="stat-label">Resolved</div></div>
+        </div>
+        <div class="grid-2">
+            <div class="card">
+                <div class="card-title">Severity Distribution</div>
+                <div id="severity-chart"></div>
+            </div>
+            <div class="card">
+                <div class="card-title">Category Distribution</div>
+                <div id="category-chart"></div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-title">Agent Health</div>
+            <div class="health-grid" id="health-grid"></div>
+        </div>
+    </div>
+
+    <!-- TELEMETRY TAB -->
+    <div class="tab-content" id="tab-telemetry">
+        <div class="card">
+            <div class="card-title">Live Event Feed</div>
+            <div class="event-log" id="event-feed"></div>
+        </div>
+    </div>
+
+    <!-- CORRELATIONS TAB -->
+    <div class="tab-content" id="tab-correlations">
+        <div class="card">
+            <div class="card-title">Detected Patterns</div>
+            <table>
+                <thead><tr><th>ID</th><th>Incident</th><th>Pattern</th><th>Confidence</th><th>Time</th></tr></thead>
+                <tbody id="corr-table"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- TRIAGE TAB -->
+    <div class="tab-content" id="tab-triage">
+        <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
+            <div class="stat-card"><div class="stat-value" id="s-total-incidents" style="color:var(--yellow)">0</div><div class="stat-label">Total Incidents</div></div>
+            <div class="stat-card"><div class="stat-value" id="s-fp" style="color:var(--muted)">0</div><div class="stat-label">False Positives</div></div>
+            <div class="stat-card"><div class="stat-value" id="s-actions" style="color:var(--green)">0</div><div class="stat-label">Containment Actions</div></div>
+        </div>
+        <div class="card">
+            <div class="card-title">Incident Queue</div>
+            <table>
+                <thead><tr><th>ID</th><th>Name</th><th>Severity</th><th>Category</th><th>Source</th><th>Events</th><th>Status</th><th>Time</th></tr></thead>
+                <tbody id="incident-table"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- FORENSICS TAB -->
+    <div class="tab-content" id="tab-forensics">
+        <div class="card">
+            <div class="card-title">Forensic Analyses</div>
+            <table>
+                <thead><tr><th>Incident</th><th>Attack Vector</th><th>IOCs</th><th>Systems</th><th>Time</th></tr></thead>
+                <tbody id="forensic-table"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- CONTAINMENT TAB -->
+    <div class="tab-content" id="tab-containment">
+        <div class="card">
+            <div class="card-title">Containment Actions</div>
+            <table>
+                <thead><tr><th>Incident</th><th>Action</th><th>Target</th><th>Status</th><th>Result</th><th>Time</th></tr></thead>
+                <tbody id="containment-table"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- REMEDIATION TAB -->
+    <div class="tab-content" id="tab-remediation">
+        <div class="card">
+            <div class="card-title">Remediation Actions</div>
+            <table>
+                <thead><tr><th>Incident</th><th>Action</th><th>Description</th><th>Status</th><th>Time</th></tr></thead>
+                <tbody id="remediation-table"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- REPORTS TAB -->
+    <div class="tab-content" id="tab-reports">
+        <div class="card">
+            <div class="card-title">Incident Reports</div>
+            <table>
+                <thead><tr><th>ID</th><th>Incident</th><th>Type</th><th>Time</th><th>Action</th></tr></thead>
+                <tbody id="report-table"></tbody>
+            </table>
+        </div>
+        <div class="card" id="report-viewer" style="display:none">
+            <div class="card-title">Report Viewer</div>
+            <div class="report-content" id="report-content"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Tab switching
+document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    });
+});
+
+// WebSocket
+let ws;
+function connectWS() {
+    ws = new WebSocket(`ws://${location.host}/ws`);
+    ws.onopen = () => {
+        document.getElementById('wsDot').classList.remove('disconnected');
+    };
+    ws.onclose = () => {
+        document.getElementById('wsDot').classList.add('disconnected');
+        setTimeout(connectWS, 3000);
+    };
+    ws.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.type === 'update') updateDashboard(data);
+    };
+}
+connectWS();
+
+function updateDashboard(data) {
+    const s = data.stats || {};
+    const h = data.health || {};
+
+    // Stats
+    document.getElementById('s-total-events').textContent = (s.total_events || 0).toLocaleString();
+    document.getElementById('s-open-incidents').textContent = s.open_incidents || 0;
+    document.getElementById('s-contained').textContent = s.contained_incidents || 0;
+    document.getElementById('s-resolved').textContent = s.resolved_incidents || 0;
+    document.getElementById('s-total-incidents').textContent = s.total_incidents || 0;
+    document.getElementById('s-fp').textContent = s.false_positives || 0;
+    document.getElementById('s-actions').textContent = s.total_containments || 0;
+    document.getElementById('eventCount').textContent = (s.total_events || 0) + ' events';
+
+    // Severity chart
+    const sevChart = document.getElementById('severity-chart');
+    const sevDist = s.severity_distribution || {};
+    const maxSev = Math.max(...Object.values(sevDist), 1);
+    sevChart.innerHTML = Object.entries(sevDist).map(([k, v]) => {
+        const colors = {CRITICAL:'#ef4444',HIGH:'#f97316',MEDIUM:'#eab308',LOW:'#22c55e',INFO:'#3b82f6'};
+        return `<div class="chart-bar"><div class="chart-bar-label">${k}</div><div class="chart-bar-track"><div class="chart-bar-fill" style="width:${(v/maxSev)*100}%;background:${colors[k]||'#6366f1'}">${v}</div></div></div>`;
+    }).join('') || '<div class="empty">No incidents yet</div>';
+
+    // Category chart
+    const catChart = document.getElementById('category-chart');
+    const catDist = s.category_distribution || {};
+    const maxCat = Math.max(...Object.values(catDist), 1);
+    catChart.innerHTML = Object.entries(catDist).map(([k, v]) => {
+        return `<div class="chart-bar"><div class="chart-bar-label">${k.replace(/_/g,' ')}</div><div class="chart-bar-track"><div class="chart-bar-fill" style="width:${(v/maxCat)*100}%;background:var(--accent)">${v}</div></div></div>`;
+    }).join('') || '<div class="empty">No data yet</div>';
+
+    // Health
+    const healthGrid = document.getElementById('health-grid');
+    healthGrid.innerHTML = Object.entries(h).map(([name, info]) => {
+        return `<div class="health-card"><div class="health-name">${name}</div><div class="health-status"><div class="health-dot ${info.status}"></div>${info.status}</div><div class="health-detail">Cycles: ${info.cycles} | Errors: ${info.errors}</div></div>`;
+    }).join('');
+}
+
+// Polling for detailed data
+async function pollData() {
+    try {
+        // Events
+        const evResp = await fetch('/api/events?limit=50');
+        const events = await evResp.json();
+        const feed = document.getElementById('event-feed');
+        feed.innerHTML = events.map(e => {
+            const time = (e.created_at || '').split('T')[1]?.split('.')[0] || '';
+            return `<div class="event-row"><span class="event-time">${time}</span><span class="event-type">${e.event_type}</span><span class="event-src">${e.source_ip || '-'}</span><span class="event-detail">${e.port ? 'port:'+e.port : ''} ${e.user || ''} ${e.process || ''}</span></div>`;
+        }).join('') || '<div class="empty">Waiting for events...</div>';
+
+        // Incidents
+        const incResp = await fetch('/api/incidents');
+        const incidents = await incResp.json();
+        document.getElementById('incident-table').innerHTML = incidents.map(i => {
+            return `<tr><td>INC-${String(i.id).padStart(4,'0')}</td><td>${i.name}</td><td><span class="badge badge-${i.severity?.toLowerCase()}">${i.severity}</span></td><td>${(i.category||'').replace(/_/g,' ')}</td><td style="font-family:'JetBrains Mono',monospace;font-size:11px">${i.source_ips||'-'}</td><td>${i.event_count||0}</td><td><span class="badge badge-${i.status}">${i.status}</span></td><td style="font-size:11px;color:var(--muted)">${(i.created_at||'').split('T')[1]?.split('.')[0]||''}</td></tr>`;
+        }).join('') || '<tr><td colspan="8" class="empty">No incidents</td></tr>';
+
+        // Correlations
+        const corrResp = await fetch('/api/correlations');
+        const corrs = await corrResp.json();
+        document.getElementById('corr-table').innerHTML = corrs.map(c => {
+            return `<tr><td>${c.id}</td><td>INC-${String(c.incident_id).padStart(4,'0')}</td><td>${c.pattern||'-'}</td><td>${(c.confidence||0).toFixed(0)}%</td><td style="font-size:11px;color:var(--muted)">${(c.created_at||'').split('T')[1]?.split('.')[0]||''}</td></tr>`;
+        }).join('') || '<tr><td colspan="5" class="empty">No correlations</td></tr>';
+
+        // Forensics
+        const forResp = await fetch('/api/forensics');
+        const fors = await forResp.json();
+        document.getElementById('forensic-table').innerHTML = fors.map(f => {
+            let iocs = '-';
+            try { const d = JSON.parse(f.iocs||'{}'); iocs = Object.entries(d).filter(([,v])=>v.length).map(([k,v])=>`${k}: ${v.length}`).join(', '); } catch{}
+            let affected = '-';
+            try { const d = JSON.parse(f.affected_systems||'[]'); affected = d.length + ' systems'; } catch{}
+            return `<tr><td>INC-${String(f.incident_id).padStart(4,'0')}</td><td>${f.attack_vector||'-'}</td><td>${iocs}</td><td>${affected}</td><td style="font-size:11px;color:var(--muted)">${(f.created_at||'').split('T')[1]?.split('.')[0]||''}</td></tr>`;
+        }).join('') || '<tr><td colspan="5" class="empty">No forensics data</td></tr>';
+
+        // Containments
+        const contResp = await fetch('/api/containments');
+        const conts = await contResp.json();
+        document.getElementById('containment-table').innerHTML = conts.map(c => {
+            let result = '-';
+            try { const d = JSON.parse(c.result||'{}'); result = d.detail || d.status || '-'; } catch{}
+            return `<tr><td>INC-${String(c.incident_id).padStart(4,'0')}</td><td>${c.action_type}</td><td style="font-family:'JetBrains Mono',monospace;font-size:11px">${c.target}</td><td><span class="badge badge-${c.status}">${c.status}</span></td><td style="font-size:11px">${result}</td><td style="font-size:11px;color:var(--muted)">${(c.created_at||'').split('T')[1]?.split('.')[0]||''}</td></tr>`;
+        }).join('') || '<tr><td colspan="6" class="empty">No containment actions</td></tr>';
+
+        // Remediations
+        const remResp = await fetch('/api/remediations');
+        const rems = await remResp.json();
+        document.getElementById('remediation-table').innerHTML = rems.map(r => {
+            return `<tr><td>INC-${String(r.incident_id).padStart(4,'0')}</td><td>${r.action_type}</td><td>${r.description||'-'}</td><td><span class="badge badge-${r.status}">${r.status}</span></td><td style="font-size:11px;color:var(--muted)">${(r.created_at||'').split('T')[1]?.split('.')[0]||''}</td></tr>`;
+        }).join('') || '<tr><td colspan="5" class="empty">No remediation actions</td></tr>';
+
+        // Reports
+        const repResp = await fetch('/api/reports');
+        const reps = await repResp.json();
+        document.getElementById('report-table').innerHTML = reps.map(r => {
+            return `<tr><td>${r.id}</td><td>INC-${String(r.incident_id).padStart(4,'0')}</td><td>${r.report_type}</td><td style="font-size:11px;color:var(--muted)">${(r.created_at||'').split('T')[1]?.split('.')[0]||''}</td><td><button class="btn" onclick="viewReport(${r.id})">View</button></td></tr>`;
+        }).join('') || '<tr><td colspan="5" class="empty">No reports yet</td></tr>';
+
+    } catch(e) {}
+    setTimeout(pollData, 5000);
+}
+pollData();
+
+async function viewReport(id) {
+    const resp = await fetch(`/api/reports/${id}`);
+    const data = await resp.json();
+    document.getElementById('report-viewer').style.display = 'block';
+    document.getElementById('report-content').textContent = data.content || 'No content';
+    document.getElementById('report-viewer').scrollIntoView({behavior:'smooth'});
+}
+</script>
+</body>
+</html>
